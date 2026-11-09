@@ -39,7 +39,7 @@ namespace CoffeeNChill.Services
                 },
                 Conditions = new BlobRequestConditions
                 {
-                    IfNoneMatch = Azure.ETag.All    // Microsoft, 2026ao
+                    IfNoneMatch = Azure.ETag.All    // Microsoft, 2026ak
                 }
             };
 
@@ -82,7 +82,7 @@ namespace CoffeeNChill.Services
         {
             BlobClient blobClient = _blobContainerClient.GetBlobClient(fileName);
 
-            Azure.Response<bool> deleted = await blobClient.DeleteIfExistsAsync(   // Microsoft, 2026ak
+            Azure.Response<bool> deleted = await blobClient.DeleteIfExistsAsync(   // Microsoft, 2026ai
                 DeleteSnapshotsOption.IncludeSnapshots);
 
             return deleted.Value;
