@@ -36,6 +36,10 @@ namespace CoffeeNChill.Services
                     ContentType = string.IsNullOrEmpty(contentType)
                         ? "application/octet-stream"
                         : contentType
+                },
+                Conditions = new BlobRequestConditions
+                {
+                    IfNoneMatch = Azure.ETag.All    // Microsoft, 2026ao
                 }
             };
 
