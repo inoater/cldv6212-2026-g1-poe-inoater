@@ -295,7 +295,7 @@
                 {
                   "key": "file",
                   "type": "file",
-                  "src": []
+                  "src": "sample-recipe.pdf"
                 }
               ]
             }
