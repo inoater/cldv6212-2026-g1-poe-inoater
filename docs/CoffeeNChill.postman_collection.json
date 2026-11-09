@@ -1,0 +1,3139 @@
+{
+	"info": {
+		"_postman_id": "a92c05b9-acc0-5b4d-a80a-173e9c2a7e2a",
+		"name": "CoffeeNChill - Part 3",
+		"description": "Part 3 tests for the CoffeeNChill Gateway API. Every request goes through the gateway ({{baseUrl}}), which routes to the Azure Functions and the Users table. Run the folders in order: the Authentication folder saves the adminToken, token (staff) and customerToken used by the later folders as Bearer {{token}}. Change baseUrl and hostUrl to the VPS address to test the live deployment.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Gateway",
+			"description": "Checks that the gateway is running and that Swagger / OpenAPI is published.",
+			"item": [
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Gateway reports Healthy\", function () {",
+									"    pm.expect(pm.response.text()).to.eql(\"Healthy\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{hostUrl}}/health",
+							"host": [
+								"{{hostUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Returns Healthy when the gateway is running."
+					},
+					"response": []
+				},
+				{
+					"name": "Swagger Document",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Swagger lists the gateway routes and the Bearer scheme\", function () {",
+									"    const doc = pm.response.json();",
+									"    pm.expect(doc.paths).to.have.property(\"/api/auth/login\");",
+									"    pm.expect(doc.paths).to.have.property(\"/api/menu\");",
+									"    pm.expect(doc.paths).to.have.property(\"/api/orders/status\");",
+									"    pm.expect(doc.components.securitySchemes).to.have.property(\"Bearer\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{hostUrl}}/swagger/v1/swagger.json",
+							"host": [
+								"{{hostUrl}}"
+							],
+							"path": [
+								"swagger",
+								"v1",
+								"swagger.json"
+							]
+						},
+						"description": "The OpenAPI document behind the Swagger UI, including the Bearer security scheme."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authentication",
+			"description": "Registers users in the Users table and issues JWT bearer tokens. The admin account is seeded when the gateway starts. The tokens saved here are used by every later folder.",
+			"item": [
+				{
+					"name": "Login Admin (Seeded)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"adminToken\", jsonData.Token);",
+									"",
+									"pm.test(\"Response contains a Bearer token for the Admin role\", function () {",
+									"    pm.expect(jsonData.Token).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TokenType).to.eql(\"Bearer\");",
+									"    pm.expect(jsonData.Role).to.eql(\"Admin\");",
+									"    pm.expect(jsonData.Email).to.eql(pm.collectionVariables.get(\"adminEmail\"));",
+									"});",
+									"",
+									"pm.test(\"JWT contains the Name, Email and Role claims\", function () {",
+									"    let payload = jsonData.Token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+									"    while (payload.length % 4) { payload += '='; }",
+									"    const claims = JSON.parse(atob(payload));",
+									"    pm.expect(claims[\"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name\"]).to.be.a('string');",
+									"    pm.expect(claims[\"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress\"]).to.eql(pm.collectionVariables.get(\"adminEmail\"));",
+									"    pm.expect(claims[\"http://schemas.microsoft.com/ws/2008/06/identity/claims/role\"]).to.eql(\"Admin\");",
+									"    pm.expect(claims.exp).to.be.above(Math.floor(Date.now() / 1000));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Logs in as the seeded canteen manager and saves the token as adminToken.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{adminEmail}}\",\n    \"Password\": \"{{adminPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Staff (No Token)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const runId = Date.now();",
+									"pm.collectionVariables.set(\"staffEmail\", \"barista.\" + runId + \"@coffeenchill.ac.za\");",
+									"pm.collectionVariables.set(\"customerEmail\", \"student.\" + runId + \"@coffeenchill.ac.za\");"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Creating a Staff account without logging in is refused. A fresh staff and customer email is generated for each run.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{staffEmail}}\",\n    \"Password\": \"{{staffPassword}}\",\n    \"FullName\": \"Busi Barista\",\n    \"Role\": \"Staff\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Staff (Admin Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Staff user was created\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Email).to.eql(pm.collectionVariables.get(\"staffEmail\"));",
+									"    pm.expect(jsonData.Role).to.eql(\"Staff\");",
+									"    pm.expect(jsonData).to.not.have.property(\"Password\");",
+									"    pm.expect(jsonData).to.not.have.property(\"PasswordHash\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "An Admin creates a barista account. The password is hashed with BCrypt before it is stored.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{staffEmail}}\",\n    \"Password\": \"{{staffPassword}}\",\n    \"FullName\": \"Busi Barista\",\n    \"Role\": \"Staff\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Staff (Duplicate)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409 Conflict\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(409);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Registering the same email twice returns 409 Conflict.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{staffEmail}}\",\n    \"Password\": \"{{staffPassword}}\",\n    \"FullName\": \"Busi Barista\",\n    \"Role\": \"Staff\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Customer user was created\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Email).to.eql(pm.collectionVariables.get(\"customerEmail\"));",
+									"    pm.expect(jsonData.Role).to.eql(\"Customer\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Anyone can create a Customer (student) account without a token.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{customerEmail}}\",\n    \"Password\": \"{{customerPassword}}\",\n    \"FullName\": \"Sam Student\",\n    \"Role\": \"Customer\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register (Invalid Email and Weak Password)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"Validation errors are listed per field\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Errors).to.have.property(\"Email\");",
+									"    pm.expect(jsonData.Errors).to.have.property(\"Password\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Model validation rejects a bad email address and a weak password.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"not-an-email\",\n    \"Password\": \"weak\",\n    \"FullName\": \"Weak Password\",\n    \"Role\": \"Customer\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Staff",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"token\", jsonData.Token);",
+									"",
+									"pm.test(\"Token belongs to the Staff role\", function () {",
+									"    pm.expect(jsonData.Role).to.eql(\"Staff\");",
+									"    pm.expect(jsonData.FullName).to.eql(\"Busi Barista\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Logs in as the new barista and saves the token as token.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{staffEmail}}\",\n    \"Password\": \"{{staffPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"customerToken\", jsonData.Token);",
+									"",
+									"pm.test(\"Token belongs to the Customer role\", function () {",
+									"    pm.expect(jsonData.Role).to.eql(\"Customer\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Logs in as the student and saves the token as customerToken.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{customerEmail}}\",\n    \"Password\": \"{{customerPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Staff (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "A Customer cannot create Staff accounts.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"not.allowed@coffeenchill.ac.za\",\n    \"Password\": \"Barista@2026\",\n    \"FullName\": \"Not Allowed\",\n    \"Role\": \"Staff\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login (Wrong Password)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"No token is returned\", function () {",
+									"    pm.expect(pm.response.json()).to.not.have.property(\"Token\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "A wrong password returns 401 and no token.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"{{staffEmail}}\",\n    \"Password\": \"Wrong@Password1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login (Unknown User)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "An email that is not in the Users table returns the same 401 as a wrong password.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Email\": \"nobody@coffeenchill.ac.za\",\n    \"Password\": \"Nobody@2026\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Claims match the logged-in barista\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Email).to.eql(pm.collectionVariables.get(\"staffEmail\"));",
+									"    pm.expect(jsonData.Role).to.eql(\"Staff\");",
+									"    pm.expect(jsonData.FullName).to.eql(\"Busi Barista\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Reads the claims back out of the bearer token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User (No Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "A protected route without a token returns 401."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Menu Items",
+			"description": "GET /api/menu is public. POST, PUT and DELETE need an Admin or Staff token. A fresh SKU is generated for each run.",
+			"item": [
+				{
+					"name": "Get All Menu Items (Anonymous)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is a list of menu items\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "Students can view the menu without logging in."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Menu Item (No Token)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.collectionVariables.set(\"menuItemId\", \"COF-\" + Math.floor(100000 + Math.random() * 900000));"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "Changing the menu without a token is refused.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Category\": \"{{menuCategory}}\",\n    \"Id\": \"{{menuItemId}}\",\n    \"Name\": \"Espresso\",\n    \"Description\": \"Single shot of rich, bold espresso\",\n    \"Price\": 25.0,\n    \"IsAvailable\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Menu Item (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "A Customer token is valid but does not have the Admin or Staff role.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Category\": \"{{menuCategory}}\",\n    \"Id\": \"{{menuItemId}}\",\n    \"Name\": \"Espresso\",\n    \"Description\": \"Single shot of rich, bold espresso\",\n    \"Price\": 25.0,\n    \"IsAvailable\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Menu Item (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 201 Created\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response contains the created item as a MenuItemDto\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Category).to.eql(pm.collectionVariables.get(\"menuCategory\"));",
+									"    pm.expect(jsonData.Id).to.eql(pm.collectionVariables.get(\"menuItemId\"));",
+									"    pm.expect(jsonData.Name).to.eql(\"Espresso\");",
+									"    pm.expect(jsonData.Price).to.eql(25);",
+									"    pm.expect(jsonData).to.not.have.property(\"PartitionKey\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "A barista adds an item to the MenuItems table through the CreateMenuItem function.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Category\": \"{{menuCategory}}\",\n    \"Id\": \"{{menuItemId}}\",\n    \"Name\": \"Espresso\",\n    \"Description\": \"Single shot of rich, bold espresso\",\n    \"Price\": 25.0,\n    \"IsAvailable\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Menu Item (Duplicate)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409 Conflict\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(409);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "The same category and SKU cannot be added twice.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Category\": \"{{menuCategory}}\",\n    \"Id\": \"{{menuItemId}}\",\n    \"Name\": \"Espresso\",\n    \"Description\": \"Single shot of rich, bold espresso\",\n    \"Price\": 25.0,\n    \"IsAvailable\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Menu Item (Invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"Price and Id are reported as invalid\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Errors).to.have.property(\"Price\");",
+									"    pm.expect(jsonData.Errors).to.have.property(\"Id\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu"
+							]
+						},
+						"description": "A negative price and an SKU with spaces fail validation before the Functions app is called.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Category\": \"Hot Drinks\",\n    \"Id\": \"BAD ID\",\n    \"Name\": \"Broken Item\",\n    \"Price\": -5\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Menu Items By Category (Anonymous)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The new item is in its category\", function () {",
+									"    const items = pm.response.json();",
+									"    pm.expect(items.some(i => i.Id === pm.collectionVariables.get(\"menuItemId\"))).to.be.true;",
+									"    items.forEach(i => pm.expect(i.Category).to.eql(pm.collectionVariables.get(\"menuCategory\")));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu/category/{{menuCategory}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"category",
+								"{{menuCategory}}"
+							]
+						},
+						"description": "Filters the menu by PartitionKey without logging in."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Menu Item Price And Availability (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Price and availability changed, everything else kept\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Price).to.eql(28.5);",
+									"    pm.expect(jsonData.IsAvailable).to.eql(false);",
+									"    pm.expect(jsonData.Name).to.eql(\"Espresso\");",
+									"    pm.expect(jsonData.Description).to.eql(\"Single shot of rich, bold espresso\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/{{menuItemId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"{{menuItemId}}"
+							]
+						},
+						"description": "Only the fields that are sent are changed, so the name and description stay the same.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Price\": 28.5,\n    \"IsAvailable\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Menu Item (Empty Body)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/{{menuItemId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"{{menuItemId}}"
+							]
+						},
+						"description": "At least one field has to be sent.",
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Menu Item (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/DOES-NOT-EXIST",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"DOES-NOT-EXIST"
+							]
+						},
+						"description": "Updating an SKU that is not on the menu returns 404.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Price\": 10\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Menu Item (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/{{menuItemId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"{{menuItemId}}"
+							]
+						},
+						"description": "A Customer cannot remove menu items."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Menu Item (Admin Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Confirmation message is returned\", function () {",
+									"    pm.expect(pm.response.json().Message).to.include(\"deleted\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/{{menuItemId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"{{menuItemId}}"
+							]
+						},
+						"description": "The canteen manager removes the test item."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Menu Item (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/menu/{{menuCategory}}/{{menuItemId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"menu",
+								"{{menuCategory}}",
+								"{{menuItemId}}"
+							]
+						},
+						"description": "Deleting the same item again returns 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Staff Documents",
+			"description": "Every document route needs an Admin or Staff token. Uploads use docs/sample-recipe.pdf and docs/sample-menu.csv, so set the Postman working directory to the docs folder (or re-select the files).",
+			"item": [
+				{
+					"name": "Upload Staff Document (No Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"upload"
+							]
+						},
+						"description": "Uploading without a token is refused.",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "File",
+									"type": "file",
+									"src": "sample-recipe.pdf"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Staff Document (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Upload is confirmed\", function () {",
+									"    pm.expect(pm.response.json().Message).to.include(pm.collectionVariables.get(\"fileName\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"upload"
+							]
+						},
+						"description": "Streams sample-recipe.pdf through the gateway to the UploadStaffDocument function and the staff-docs container.",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "File",
+									"type": "file",
+									"src": "sample-recipe.pdf"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Staff Document (Duplicate)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 409 Conflict\", function () {",
+									"    pm.response.to.have.status(409);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(409);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"upload"
+							]
+						},
+						"description": "Uploading a file with the same name again returns 409.",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "File",
+									"type": "file",
+									"src": "sample-recipe.pdf"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Staff Document (Unsupported Type)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 415 Unsupported Media Type\", function () {",
+									"    pm.response.to.have.status(415);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(415);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"upload"
+							]
+						},
+						"description": "A CSV file is not an allowed document type.",
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "File",
+									"type": "file",
+									"src": "sample-menu.csv"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Staff Documents (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents"
+							]
+						},
+						"description": "Students cannot see the staff documents."
+					},
+					"response": []
+				},
+				{
+					"name": "List Staff Documents (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The uploaded recipe is listed with its metadata\", function () {",
+									"    const document = pm.response.json().find(d => d.FileName === pm.collectionVariables.get(\"fileName\"));",
+									"    pm.expect(document).to.not.be.undefined;",
+									"    pm.expect(document.SizeBytes).to.be.above(0);",
+									"    pm.expect(document.LastModified).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents"
+							]
+						},
+						"description": "Lists the documents with file name, size and last modified date."
+					},
+					"response": []
+				},
+				{
+					"name": "Download Staff Document (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The file is returned as a PDF attachment\", function () {",
+									"    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/pdf\");",
+									"    pm.expect(pm.response.headers.get(\"Content-Disposition\")).to.include(pm.collectionVariables.get(\"fileName\"));",
+									"    pm.expect(pm.response.text()).to.include(\"%PDF\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/download/{{fileName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"download",
+								"{{fileName}}"
+							]
+						},
+						"description": "Streams the PDF back through the gateway."
+					},
+					"response": []
+				},
+				{
+					"name": "Download Staff Document (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/download/does-not-exist.pdf",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"download",
+								"does-not-exist.pdf"
+							]
+						},
+						"description": "Downloading a file that does not exist returns 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Staff Document (Admin Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Deletion is confirmed\", function () {",
+									"    pm.expect(pm.response.json().Message).to.include(\"deleted\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/{{fileName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"{{fileName}}"
+							]
+						},
+						"description": "Removes the recipe from the staff-docs container through the DeleteStaffDocument function."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Staff Document (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/documents/{{fileName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"documents",
+								"{{fileName}}"
+							]
+						},
+						"description": "Deleting the same file again returns 404."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"description": "Placing and tracking an order is public. Listing all orders, changing a status and viewing failed orders need an Admin or Staff token. Some requests wait a few seconds so the queue trigger can run.",
+			"item": [
+				{
+					"name": "Place Order (Anonymous)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const orderId = \"ORD-2026-\" + Math.floor(100000 + Math.random() * 900000);",
+									"pm.collectionVariables.set(\"orderId\", orderId);"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 202 Accepted\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"pm.test(\"Response echoes the queued order\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.OrderId).to.eql(pm.collectionVariables.get(\"orderId\"));",
+									"    pm.expect(jsonData.CustomerName).to.eql(\"Jane Smith\");",
+									"    pm.expect(jsonData.SelectedItemSKUs).to.eql([\"COF-001\", \"PAS-104\"]);",
+									"    pm.expect(jsonData.TotalPrice).to.eql(65);",
+									"    pm.expect(jsonData.OrderTimestamp).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"Location header points at the tracking route\", function () {",
+									"    pm.expect(pm.response.headers.get(\"Location\")).to.include(\"/api/orders/\" + pm.collectionVariables.get(\"orderId\"));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/queue",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"queue"
+							]
+						},
+						"description": "A student places an order without logging in. The gateway forwards it to QueueOrder, which puts it on order-processing-queue.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"{{orderId}}\",\n    \"CustomerName\": \"Jane Smith\",\n    \"SelectedItemSKUs\": [\n        \"COF-001\",\n        \"PAS-104\"\n    ],\n    \"TotalPrice\": 65.00,\n    \"OrderTimestamp\": \"{{$isoTimestamp}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Place Order (Generated ID and Timestamp)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 202 Accepted\", function () {",
+									"    pm.response.to.have.status(202);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"generatedOrderId\", jsonData.OrderId);",
+									"",
+									"pm.test(\"An OrderId and timestamp were generated\", function () {",
+									"    pm.expect(jsonData.OrderId).to.match(/^ORD-\\d{4}-[A-Z0-9]{6}$/);",
+									"    pm.expect(jsonData.OrderTimestamp).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/queue",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"queue"
+							]
+						},
+						"description": "OrderId and OrderTimestamp are generated by the queue producer when they are left out.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"CustomerName\": \"Thabo Nkosi\",\n    \"SelectedItemSKUs\": [\n        \"COF-002\"\n    ],\n    \"TotalPrice\": 30.0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Place Order (Invalid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"Every invalid field is reported\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.Errors).to.have.property(\"CustomerName\");",
+									"    pm.expect(jsonData.Errors).to.have.property(\"SelectedItemSKUs\");",
+									"    pm.expect(jsonData.Errors).to.have.property(\"TotalPrice\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/queue",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"queue"
+							]
+						},
+						"description": "A missing customer name, no items and a zero total fail validation and nothing is queued.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"CustomerName\": \"\",\n    \"SelectedItemSKUs\": [],\n    \"TotalPrice\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Place Order (Malformed JSON)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/queue",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"queue"
+							]
+						},
+						"description": "A body that is not valid JSON returns 400.",
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"CustomerName\": \"Jane Smith\", \"SelectedItemSKUs\": [\"COF-001\" ",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Track Order (Anonymous)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"setTimeout(function () {}, 5000);"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Order was logged in the Orders table\", function () {",
+									"    const order = pm.response.json();",
+									"    pm.expect(order.OrderId).to.eql(pm.collectionVariables.get(\"orderId\"));",
+									"    pm.expect(order.OrderDate).to.match(/^\\d{4}-\\d{2}-\\d{2}$/);",
+									"    pm.expect(order.SelectedItemSKUs).to.eql([\"COF-001\", \"PAS-104\"]);",
+									"    pm.expect([\"Received\", \"Preparing\"]).to.include(order.Status);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders/{{orderId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"{{orderId}}"
+							]
+						},
+						"description": "Waits 5 seconds for ProcessOrderQueue, then the student tracks the order without logging in."
+					},
+					"response": []
+				},
+				{
+					"name": "Track Order (Generated ID)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Generated order was logged\", function () {",
+									"    pm.expect(pm.response.json().CustomerName).to.eql(\"Thabo Nkosi\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders/{{generatedOrderId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"{{generatedOrderId}}"
+							]
+						},
+						"description": "The order without an OrderId was processed too."
+					},
+					"response": []
+				},
+				{
+					"name": "Track Order (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders/ORD-DOES-NOT-EXIST",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"ORD-DOES-NOT-EXIST"
+							]
+						},
+						"description": "An unknown order returns 404."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Orders (No Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 401 Unauthorized\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(401);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders"
+							]
+						},
+						"description": "Listing every order is a staff-only route."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Orders (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders"
+							]
+						},
+						"description": "A Customer cannot list every order."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Orders (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"The new order is listed\", function () {",
+									"    const orders = pm.response.json();",
+									"    pm.expect(orders.some(o => o.OrderId === pm.collectionVariables.get(\"orderId\"))).to.be.true;",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders"
+							]
+						},
+						"description": "A barista sees every order, newest first."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status (Customer Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 403 Forbidden\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(403);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{customerToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"status"
+							]
+						},
+						"description": "A Customer cannot change an order status.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"{{orderId}}\",\n    \"Status\": \"Ready\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status To Ready (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Status changed to Ready\", function () {",
+									"    const order = pm.response.json();",
+									"    pm.expect(order.OrderId).to.eql(pm.collectionVariables.get(\"orderId\"));",
+									"    pm.expect(order.Status).to.eql(\"Ready\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"status"
+							]
+						},
+						"description": "The barista marks the order as Ready through the UpdateOrderStatus function.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"{{orderId}}\",\n    \"Status\": \"Ready\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status (Invalid Status)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 400 Bad Request\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(400);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});",
+									"",
+									"pm.test(\"Status is reported as invalid\", function () {",
+									"    pm.expect(pm.response.json().Errors).to.have.property(\"Status\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"status"
+							]
+						},
+						"description": "Only Received, Preparing, Ready and Collected are allowed.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"{{orderId}}\",\n    \"Status\": \"Burnt\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status (Not Found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 404 Not Found\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Error body uses the ErrorResponseDto shape\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.StatusCode).to.eql(404);",
+									"    pm.expect(jsonData.Message).to.be.a('string').and.not.be.empty;",
+									"    pm.expect(jsonData.TraceId).to.be.a('string');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"status"
+							]
+						},
+						"description": "Changing the status of an unknown order returns 404.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"ORD-DOES-NOT-EXIST\",\n    \"Status\": \"Ready\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Track Order After Update (Anonymous)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Student sees the order is Ready (or already Collected)\", function () {",
+									"    pm.expect([\"Ready\", \"Collected\"]).to.include(pm.response.json().Status);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders/{{orderId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"{{orderId}}"
+							]
+						},
+						"description": "The student sees the new status straight away."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order Status To Collected (Admin Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Status changed to Collected\", function () {",
+									"    pm.expect(pm.response.json().Status).to.eql(\"Collected\");",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{adminToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"status"
+							]
+						},
+						"description": "The canteen manager closes the order.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"OrderId\": \"{{orderId}}\",\n    \"Status\": \"Collected\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Failed Orders (Staff Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test(\"Status code is 200 OK\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is a list of failed orders\", function () {",
+									"    pm.expect(pm.response.json()).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/orders/failed",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"orders",
+								"failed"
+							]
+						},
+						"description": "Lists the order messages that ended up in the poison queue."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "hostUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000/api",
+			"type": "string"
+		},
+		{
+			"key": "adminEmail",
+			"value": "admin@coffeenchill.ac.za",
+			"type": "string"
+		},
+		{
+			"key": "adminPassword",
+			"value": "Admin@CoffeeNChill2026",
+			"type": "string"
+		},
+		{
+			"key": "staffEmail",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "staffPassword",
+			"value": "Barista@2026",
+			"type": "string"
+		},
+		{
+			"key": "customerEmail",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "customerPassword",
+			"value": "Student@2026",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "customerToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "menuCategory",
+			"value": "Hot Drinks",
+			"type": "string"
+		},
+		{
+			"key": "menuItemId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "fileName",
+			"value": "sample-recipe.pdf",
+			"type": "string"
+		},
+		{
+			"key": "orderId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "generatedOrderId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
