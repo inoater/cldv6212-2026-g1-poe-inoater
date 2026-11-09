@@ -17,12 +17,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             _orderClient = orderClient;
         }
 
-        /// <summary>
-        /// Places an order on the order-processing-queue.
-        /// </summary>
-        /// <param name="dto">Customer name, item SKUs and total price. OrderId and OrderTimestamp are generated when left out.</param>
-        /// <response code="202">The order was queued.</response>
-        /// <response code="400">The order details are invalid.</response>
         [HttpPost("queue")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(OrderSubmissionResponseDto), StatusCodes.Status202Accepted)]
@@ -39,12 +33,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             });
         }
 
-        /// <summary>
-        /// Gets every order in the Orders table.
-        /// </summary>
-        /// <response code="200">The orders.</response>
-        /// <response code="401">No valid token was sent.</response>
-        /// <response code="403">Only Admin and Staff can view all orders.</response>
         [HttpGet]
         [Authorize(Roles = "Admin,Staff")]  // Microsoft, 2026x
         [ProducesResponseType(typeof(IEnumerable<OrderResponseDto>), StatusCodes.Status200OK)]
@@ -56,14 +44,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             return Ok(result);
         }
 
-        /// <summary>
-        /// Gets one order and its current status.
-        /// </summary>
-        /// <param name="orderId">Order ID, e.g. ORD-2026-8801.</param>
-        /// <response code="200">The order.</response>
-        /// <response code="401">No valid token was sent.</response>
-        /// <response code="403">Only Admin and Staff can view orders.</response>
-        /// <response code="404">The order was not found.</response>
         [HttpGet("{orderId}")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(OrderResponseDto), StatusCodes.Status200OK)]
@@ -76,15 +56,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             return Ok(result);
         }
 
-        /// <summary>
-        /// Updates the status of an order.
-        /// </summary>
-        /// <param name="dto">Order ID and the new status (Received, Preparing, Ready or Collected).</param>
-        /// <response code="200">The status was updated.</response>
-        /// <response code="400">The status is invalid.</response>
-        /// <response code="401">No valid token was sent.</response>
-        /// <response code="403">Only Admin and Staff can update order statuses.</response>
-        /// <response code="404">The order was not found.</response>
         [HttpPut("status")]
         [Authorize(Roles = "Admin,Staff")]
         [ProducesResponseType(typeof(OrderResponseDto), StatusCodes.Status200OK)]

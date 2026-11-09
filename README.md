@@ -7,7 +7,7 @@ CoffeeNChill is a campus canteen. Part 1 replaced the paper menus and filing-cab
 - An **ASP.NET Core Web API gateway** (`CoffeeNChillGatewayAPI`) that routes client requests to the Azure Functions using DTOs.
 - **JWT authentication** with user profiles stored in a **Users** Azure Table and passwords hashed with **BCrypt**.
 - **Role-based access**: anyone can view the menu and place orders. Only **Admin** and **Staff** users can change the menu, manage staff documents and update order statuses.
-- **Swagger UI** with XML documentation for the endpoints, request bodies and response codes.
+- **Swagger UI** for testing the endpoints, request bodies and response codes.
 - **Global exception middleware** so every error is returned in the same format.
 - **Deployment to a Linux VPS** with Docker Compose, pulling the images from Docker Hub.
 - A **GitHub Actions pipeline** (bonus) that builds, tests, pushes the images and redeploys the VPS on every push to `main`.
@@ -243,7 +243,7 @@ Protected requests send `Bearer {{token}}` (Postman Inc., 2026b). `docs/CoffeeNC
 - `UserService` (Users table) and `AuthService` (BCrypt hashing and JWT tokens with the Name, Email and Role claims).
 - `[Authorize(Roles = "Admin,Staff")]` on the protected routes and `[AllowAnonymous]` on `GET /api/menu` and `POST /api/orders/queue`.
 - `GlobalExceptionMiddleware` and `ErrorResponseDto`.
-- Swagger UI with XML documentation and the Bearer security scheme.
+- Swagger UI with the Bearer security scheme.
 - Functions: `DeleteStaffDocument` (`DELETE /api/documents/{fileName}`) and `UpdateOrderStatus` (`PUT /api/orders/status`).
 - Gateway `Dockerfile`, a `gateway` service in `docker-compose.yml`, unit tests and the GitHub Actions pipeline.
 - Part 3 Postman collection with Bearer token requests.
@@ -306,7 +306,7 @@ Protected requests send `Bearer {{token}}` (Postman Inc., 2026b). `docs/CoffeeNC
 
 | Member | Student Number | Contribution |
 |---|---|---|
-| Jake Jacobs | st10477406 | Set up the gateway project and built the login side of it: the Users table entity and the service that connects to it, the register and login endpoints with their DTOs, hashing passwords with BCrypt before they are saved, and creating the JWT with the user's name, email and role. Set up JWT bearer authentication and Swagger in Program.cs, with XML comments and the Authorize button so a token can be tested straight from Swagger, wrote the unit tests for the tokens and password hashing, and made the multi-stage Dockerfile for the gateway. |
+| Jake Jacobs | st10477406 | Set up the gateway project and built the login side of it: the Users table entity and the service that connects to it, the register and login endpoints with their DTOs, hashing passwords with BCrypt before they are saved, and creating the JWT with the user's name, email and role. Set up JWT bearer authentication and Swagger in Program.cs, with the Authorize button so a token can be tested straight from Swagger, wrote the unit tests for the tokens and password hashing, and made the multi-stage Dockerfile for the gateway. |
 | Liyema Mncora | st10397155 | Built the rest of the gateway on top of the login: the menu, document and order controllers and DTOs, the typed HttpClients that call the Functions app, the Admin/Staff roles on each protected route and the global exception middleware that returns the same error format every time. Added the DeleteStaffDocument and UpdateOrderStatus functions and stopped duplicate document uploads overwriting files. Added the gateway to docker-compose.yml, pushed the v3.0 images to Docker Hub, wrote the GitHub Actions pipeline, made the Part 3 Postman collection with the Bearer token flows, deployed the stack live through a Cloudflare tunnel and updated the README. |
 
 ## Video Demonstration
@@ -419,13 +419,11 @@ Microsoft (2026ah) _Gateway Routing pattern_. Available at: https://learn.micros
 
 Microsoft (2026ai) _BlobBaseClient.DeleteIfExistsAsync Method (Azure.Storage.Blobs.Specialized)_. Available at: https://learn.microsoft.com/en-us/dotnet/api/azure.storage.blobs.specialized.blobbaseclient.deleteifexistsasync (Accessed: 9 November 2026).
 
-Microsoft (2026aj) _XML API documentation comments - document APIs using /// comments_. Available at: https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/ (Accessed: 9 November 2026).
+Microsoft (2026aj) _Manage concurrency in Blob Storage_. Available at: https://learn.microsoft.com/en-us/azure/storage/blobs/concurrency-manage (Accessed: 9 November 2026).
 
-Microsoft (2026ak) _Manage concurrency in Blob Storage_. Available at: https://learn.microsoft.com/en-us/azure/storage/blobs/concurrency-manage (Accessed: 9 November 2026).
+Microsoft (2026ak) _Connect to a Linux VM_. Available at: https://learn.microsoft.com/en-us/azure/virtual-machines/linux-vm-connect (Accessed: 9 November 2026).
 
-Microsoft (2026al) _Connect to a Linux VM_. Available at: https://learn.microsoft.com/en-us/azure/virtual-machines/linux-vm-connect (Accessed: 9 November 2026).
-
-Microsoft (2026am) _Configuration in ASP.NET Core_. Available at: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/ (Accessed: 9 November 2026).
+Microsoft (2026al) _Configuration in ASP.NET Core_. Available at: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/ (Accessed: 9 November 2026).
 
 W3Schools (2026c) _C# Properties (Get and Set)_. Available at: https://www.w3schools.com/cs/cs_properties.php (Accessed: 9 November 2026).
 

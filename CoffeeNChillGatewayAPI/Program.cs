@@ -4,7 +4,6 @@ using CoffeeNChillGatewayAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using System.Reflection;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-string connectionString = builder.Configuration.GetConnectionString("AzureStorage") ?? "UseDevelopmentStorage=true";    // Microsoft, 2026am
+string connectionString = builder.Configuration.GetConnectionString("AzureStorage") ?? "UseDevelopmentStorage=true";    // Microsoft, 2026al
 
 builder.Services.AddSingleton(await UserService.CreateAsync(connectionString, "Users"));
 builder.Services.AddScoped<AuthService>();
@@ -48,9 +47,6 @@ builder.Services.AddSwaggerGen(options =>   // Microsoft, 2026v; rudderz243, 202
         Title = "CoffeeNChill Gateway API",
         Version = "v1"
     });
-
-    string xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile));     // Microsoft, 2026aj
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {

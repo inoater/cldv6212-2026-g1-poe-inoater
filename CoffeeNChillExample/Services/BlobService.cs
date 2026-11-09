@@ -39,7 +39,7 @@ namespace CoffeeNChill.Services
                 },
                 Conditions = new BlobRequestConditions
                 {
-                    IfNoneMatch = Azure.ETag.All    // Microsoft, 2026ak
+                    IfNoneMatch = Azure.ETag.All    // Microsoft, 2026aj
                 }
             };
 

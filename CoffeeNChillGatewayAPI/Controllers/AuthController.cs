@@ -17,12 +17,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             _authService = authService;
         }
 
-        /// <summary>
-        /// Registers a new user and stores the hashed password in the Users table.
-        /// </summary>
-        /// <param name="dto">Email, password, full name and role (Admin, Staff or Customer).</param>
-        /// <response code="201">The user was registered.</response>
-        /// <response code="400">The user already exists or the details are invalid.</response>
         [HttpPost("register")]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -43,12 +37,6 @@ namespace CoffeeNChillGatewayAPI.Controllers
             return StatusCode(StatusCodes.Status201Created, new { message = "User registered successfully." });
         }
 
-        /// <summary>
-        /// Logs a user in and returns a signed JWT bearer token.
-        /// </summary>
-        /// <param name="dto">Email and password.</param>
-        /// <response code="200">Login worked and the token is returned.</response>
-        /// <response code="401">The email or password is wrong.</response>
         [HttpPost("login")]
         [AllowAnonymous]
         [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
