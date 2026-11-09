@@ -5,25 +5,49 @@ services: # Docker Inc., 2026b; IIE, 2026g
     container_name: coffeenchill-azurite
     restart: on-failure
     ports:
-      - "10000:10000"
-      - "10001:10001"
-      - "10002:10002"
+      - "127.0.0.1:10000:10000"
+      - "127.0.0.1:10001:10001"
+      - "127.0.0.1:10002:10002"
     volumes:
       - azurite_data:/data
     networks:
       - coffeenchill_network
 
   functions:
-    image: liyemamncoraemecpe/coffeenchill-functions:v2.0
+    image: liyemamncoraemecpe/coffeenchill-functions:${IMAGE_TAG:-v3.0}  # Docker Inc., 2026e
     container_name: coffeenchill-functions
     restart: on-failure
     depends_on:
       - azurite
     ports:
-      - "7071:80"
+      - "127.0.0.1:7071:80"
     environment:  # Docker Inc., 2026c
       - FUNCTIONS_WORKER_RUNTIME=dotnet-isolated
       - AzureWebJobsStorage=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
+    networks:
+      - coffeenchill_network
+
+  gateway:
+    image: liyemamncoraemecpe/coffeenchill-gateway:${IMAGE_TAG:-v3.0}  # rudderz243, 2026
+    container_name: coffeenchill-gateway
+    restart: on-failure
+    depends_on:
+      - azurite
+      - functions
+    ports:
+      - "${GATEWAY_PORT:-5000}:8080"
+    environment:  # Docker Inc., 2026e
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__AzureStorage=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
+      - DownstreamServices__FunctionsBaseUrl=http://functions:80
+      - JwtSettings__SecretKey=${JWT_SECRET_KEY:-CoffeeNChill-Local-Docker-Signing-Key-Change-This-On-The-VPS-2026}
+      - JwtSettings__Issuer=CoffeeNChillGateway
+      - JwtSettings__Audience=CoffeeNChillClients
+      - JwtSettings__ExpirationMinutes=${JWT_EXPIRATION_MINUTES:-60}
+      - SeedAdmin__Email=${ADMIN_EMAIL:-admin@coffeenchill.ac.za}
+      - SeedAdmin__Password=${ADMIN_PASSWORD:-Admin@CoffeeNChill2026}
+      - SeedAdmin__FullName=Canteen Manager
     networks:
       - coffeenchill_network
 
