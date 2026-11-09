@@ -1,61 +1,54 @@
-using CoffeeNChillGatewayAPI.Models;
+using CoffeeNChillGatewayAPI.DTOs;
+using System.Text.Json;
 
 namespace CoffeeNChillGatewayAPI.Clients
 {
-    public class MenuFunctionClient : FunctionClientBase    // Microsoft, 2026aa; rudderz243, 2026
+    public class MenuFunctionClient     // Microsoft, 2026aa; rudderz243, 2026
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions();
+
+        private readonly HttpClient _httpClient;
+
         public MenuFunctionClient(HttpClient httpClient)
-            : base(httpClient)
         {
+            _httpClient = httpClient;
         }
 
-        public async Task<List<FunctionMenuItem>> GetAllMenuItemsAsync()
+        public async Task<IEnumerable<MenuItemResponseDto>> GetAllMenuItemsAsync()
         {
-            using HttpResponseMessage response = await _httpClient.GetAsync("api/menu");
-
-            return await ReadFunctionJsonAsync<List<FunctionMenuItem>>(response);
+            var response = await _httpClient.GetAsync("api/menu");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<IEnumerable<MenuItemResponseDto>>() ?? new List<MenuItemResponseDto>();
         }
 
-        public async Task<List<FunctionMenuItem>> GetMenuItemsByCategoryAsync(string category)
+        public async Task<IEnumerable<MenuItemResponseDto>> GetMenuItemsByCategoryAsync(string category)
         {
-            using HttpResponseMessage response =
-                await _httpClient.GetAsync($"api/menu/category/{Escape(category)}");
-
-            return await ReadFunctionJsonAsync<List<FunctionMenuItem>>(response);
+            var response = await _httpClient.GetAsync($"api/menu/category/{Uri.EscapeDataString(category)}");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<IEnumerable<MenuItemResponseDto>>() ?? new List<MenuItemResponseDto>();
         }
 
-        public async Task<FunctionMenuItem?> GetMenuItemAsync(string category, string id)
+        public async Task<MenuItemResponseDto?> CreateMenuItemAsync(MenuItemCreateRequestDto newItem)
         {
-            List<FunctionMenuItem> categoryItems = await GetMenuItemsByCategoryAsync(category);
-
-            return categoryItems.FirstOrDefault(
-                item => string.Equals(item.RowKey, id, StringComparison.OrdinalIgnoreCase));
+            var response = await _httpClient.PostAsJsonAsync("api/menu", newItem, _jsonOptions);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<MenuItemResponseDto>();
         }
 
-        public async Task<FunctionMenuItem> CreateMenuItemAsync(FunctionMenuItem newItem)
+        public async Task<MenuItemResponseDto?> UpdateMenuItemAsync(string category, string id, MenuItemUpdateRequestDto updatedItem)
         {
-            using HttpResponseMessage response =
-                await _httpClient.PostAsJsonAsync("api/menu", newItem, _functionJsonOptions);
-
-            return await ReadFunctionJsonAsync<FunctionMenuItem>(response);
-        }
-
-        public async Task<FunctionMenuItem> UpdateMenuItemAsync(string category, string id, FunctionMenuItem updatedItem)
-        {
-            using HttpResponseMessage response = await _httpClient.PutAsJsonAsync(
-                $"api/menu/{Escape(category)}/{Escape(id)}",
+            var response = await _httpClient.PutAsJsonAsync(
+                $"api/menu/{Uri.EscapeDataString(category)}/{Uri.EscapeDataString(id)}",
                 updatedItem,
-                _functionJsonOptions);
-
-            return await ReadFunctionJsonAsync<FunctionMenuItem>(response);
+                _jsonOptions);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<MenuItemResponseDto>();
         }
 
-        public async Task<string> DeleteMenuItemAsync(string category, string id)
+        public async Task DeleteMenuItemAsync(string category, string id)
         {
-            using HttpResponseMessage response =
-                await _httpClient.DeleteAsync($"api/menu/{Escape(category)}/{Escape(id)}");
-
-            return await ReadFunctionMessageAsync(response);
+            var response = await _httpClient.DeleteAsync($"api/menu/{Uri.EscapeDataString(category)}/{Uri.EscapeDataString(id)}");
+            response.EnsureSuccessStatusCode();
         }
     }
 }

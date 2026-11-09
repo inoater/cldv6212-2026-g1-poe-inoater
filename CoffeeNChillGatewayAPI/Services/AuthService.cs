@@ -1,125 +1,93 @@
-using Azure;
-using CoffeeNChillGatewayAPI.Constants;
-using CoffeeNChillGatewayAPI.Configuration;
 using CoffeeNChillGatewayAPI.DTOs;
 using CoffeeNChillGatewayAPI.Models;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace CoffeeNChillGatewayAPI.Services
 {
-    public class AuthService    // rudderz243, 2026; BcryptNet, 2026
+    public class AuthService    // rudderz243, 2026
     {
-        private const int BcryptWorkFactor = 12;
-
-        private static readonly string _dummyPasswordHash =
-            BCrypt.Net.BCrypt.HashPassword("CoffeeNChill-Dummy-Password", BcryptWorkFactor);
-
         private readonly UserService _userService;
-        private readonly TokenService _tokenService;
-        private readonly ILogger<AuthService> _logger;
+        private readonly IConfiguration _configuration;
 
-        public AuthService(
-            UserService userService,
-            TokenService tokenService,
-            ILogger<AuthService> logger)
+        public AuthService(UserService userService, IConfiguration configuration)
         {
             _userService = userService;
-            _tokenService = tokenService;
-            _logger = logger;
+            _configuration = configuration;
         }
 
-        public static string HashPassword(string password)
+        public async Task<bool> RegisterAsync(RegistrationDto newUser)
         {
-            return BCrypt.Net.BCrypt.HashPassword(password, BcryptWorkFactor);  // OWASP Foundation, 2026a
-        }
-
-        public static bool VerifyPassword(string password, string passwordHash)
-        {
-            return BCrypt.Net.BCrypt.Verify(password, passwordHash);
-        }
-
-        public async Task<UserEntity?> RegisterAsync(RegisterRequestDto newUser)
-        {
-            string email = newUser.Email.Trim().ToLowerInvariant();
+            string email = newUser.Email.ToLowerInvariant();
 
             if (await _userService.GetUserByEmailAsync(email) != null)
             {
-                return null;
+                return false;
             }
 
-            string role = Roles.All.First(
-                r => string.Equals(r, newUser.Role, StringComparison.OrdinalIgnoreCase));
-
-            var userEntity = new UserEntity
+            var user = new UserEntity
             {
-                PartitionKey = role,
+                PartitionKey = newUser.Role,
                 RowKey = email,
-                PasswordHash = HashPassword(newUser.Password),
-                FullName = newUser.FullName.Trim(),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(newUser.Password),    // Microsoft, 2026af
+                FullName = newUser.FullName,
                 CreatedDate = DateTime.UtcNow
             };
 
-            try
-            {
-                await _userService.AddUserAsync(userEntity);
-            }
-            catch (RequestFailedException e) when (e.Status == StatusCodes.Status409Conflict)
-            {
-                return null;
-            }
+            await _userService.AddUserAsync(user);
 
-            _logger.LogInformation("Registered {role} user {email}.", role, email);
-
-            return userEntity;
+            return true;
         }
 
-        public async Task<AuthResponseDto?> LoginAsync(LoginRequestDto credentials)
+        public async Task<AuthResponseDto?> LoginAsync(LoginDto credentials)
         {
-            UserEntity? user = await _userService.GetUserByEmailAsync(credentials.Email);
+            UserEntity? user = await _userService.GetUserByEmailAsync(credentials.Email.ToLowerInvariant());
 
             if (user == null)
             {
-                VerifyPassword(credentials.Password, _dummyPasswordHash);  // OWASP Foundation, 2026a
-
-                _logger.LogWarning("Login failed for unknown user {email}.", credentials.Email);
-
                 return null;
             }
 
-            if (!VerifyPassword(credentials.Password, user.PasswordHash))
+            if (!BCrypt.Net.BCrypt.Verify(credentials.Password, user.PasswordHash))
             {
-                _logger.LogWarning("Login failed for {email}: wrong password.", user.RowKey);
-
                 return null;
             }
 
-            _logger.LogInformation("{role} user {email} logged in.", user.PartitionKey, user.RowKey);
-
-            return _tokenService.GenerateToken(user);
+            return GenerateToken(user);
         }
 
-        public async Task EnsureSeedAdminAsync(SeedAdminSettings seedAdmin)
+        public AuthResponseDto GenerateToken(UserEntity user)
         {
-            if (string.IsNullOrWhiteSpace(seedAdmin.Email) || string.IsNullOrWhiteSpace(seedAdmin.Password))
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var expiration = DateTime.UtcNow.AddMinutes(double.Parse(jwtSettings["ExpirationMinutes"]!));
+
+            var claims = new[]
             {
-                _logger.LogWarning("No seed admin is configured, so only Customer accounts can be registered.");
+                new Claim(JwtRegisteredClaimNames.Sub, user.RowKey),
+                new Claim(ClaimTypes.Name, user.FullName),
+                new Claim(ClaimTypes.Email, user.RowKey),
+                new Claim(ClaimTypes.Role, user.PartitionKey)
+            };
 
-                return;
-            }
+            var token = new JwtSecurityToken(   // Microsoft, 2026ae
+                issuer: jwtSettings["Issuer"],
+                audience: jwtSettings["Audience"],
+                claims: claims,
+                expires: expiration,
+                signingCredentials: credentials);
 
-            if (await _userService.GetUserByEmailAsync(seedAdmin.Email) != null)
+            return new AuthResponseDto
             {
-                return;
-            }
-
-            await RegisterAsync(new RegisterRequestDto
-            {
-                Email = seedAdmin.Email,
-                Password = seedAdmin.Password,
-                FullName = seedAdmin.FullName,
-                Role = Roles.Admin
-            });
-
-            _logger.LogInformation("Seed admin {email} was created.", seedAdmin.Email);
+                Token = new JwtSecurityTokenHandler().WriteToken(token),
+                Email = user.RowKey,
+                FullName = user.FullName,
+                Role = user.PartitionKey,
+                ExpiresAtUtc = expiration
+            };
         }
     }
 }

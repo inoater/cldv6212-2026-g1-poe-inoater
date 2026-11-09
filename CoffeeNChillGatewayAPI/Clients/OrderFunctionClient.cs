@@ -1,50 +1,45 @@
-using CoffeeNChillGatewayAPI.Models;
+using CoffeeNChillGatewayAPI.DTOs;
+using System.Text.Json;
 
 namespace CoffeeNChillGatewayAPI.Clients
 {
-    public class OrderFunctionClient : FunctionClientBase   // Microsoft, 2026aa; rudderz243, 2026
+    public class OrderFunctionClient    // Microsoft, 2026aa; rudderz243, 2026
     {
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions();
+
+        private readonly HttpClient _httpClient;
+
         public OrderFunctionClient(HttpClient httpClient)
-            : base(httpClient)
         {
+            _httpClient = httpClient;
         }
 
-        public async Task<FunctionOrderMessage> QueueOrderAsync(FunctionOrderMessage newOrder)
+        public async Task<OrderSubmissionRequestDto?> QueueOrderAsync(OrderSubmissionRequestDto newOrder)
         {
-            using HttpResponseMessage response =
-                await _httpClient.PostAsJsonAsync("api/orders/queue", newOrder, _functionJsonOptions);
-
-            return await ReadFunctionJsonAsync<FunctionOrderMessage>(response);
+            var response = await _httpClient.PostAsJsonAsync("api/orders/queue", newOrder, _jsonOptions);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OrderSubmissionRequestDto>();
         }
 
-        public async Task<List<FunctionOrder>> GetAllOrdersAsync()
+        public async Task<IEnumerable<OrderResponseDto>> GetAllOrdersAsync()
         {
-            using HttpResponseMessage response = await _httpClient.GetAsync("api/orders");
-
-            return await ReadFunctionJsonAsync<List<FunctionOrder>>(response);
+            var response = await _httpClient.GetAsync("api/orders");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<IEnumerable<OrderResponseDto>>() ?? new List<OrderResponseDto>();
         }
 
-        public async Task<FunctionOrder> GetOrderByIdAsync(string orderId)
+        public async Task<OrderResponseDto?> GetOrderByIdAsync(string orderId)
         {
-            using HttpResponseMessage response =
-                await _httpClient.GetAsync($"api/orders/{Escape(orderId)}");
-
-            return await ReadFunctionJsonAsync<FunctionOrder>(response);
+            var response = await _httpClient.GetAsync($"api/orders/{Uri.EscapeDataString(orderId)}");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OrderResponseDto>();
         }
 
-        public async Task<FunctionOrder> UpdateOrderStatusAsync(FunctionStatusUpdate statusUpdate)
+        public async Task<OrderResponseDto?> UpdateOrderStatusAsync(OrderStatusUpdateRequestDto statusUpdate)
         {
-            using HttpResponseMessage response =
-                await _httpClient.PutAsJsonAsync("api/orders/status", statusUpdate, _functionJsonOptions);
-
-            return await ReadFunctionJsonAsync<FunctionOrder>(response);
-        }
-
-        public async Task<List<FunctionFailedOrder>> GetFailedOrdersAsync()
-        {
-            using HttpResponseMessage response = await _httpClient.GetAsync("api/failed-orders");
-
-            return await ReadFunctionJsonAsync<List<FunctionFailedOrder>>(response);
+            var response = await _httpClient.PutAsJsonAsync("api/orders/status", statusUpdate, _jsonOptions);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OrderResponseDto>();
         }
     }
 }

@@ -19,8 +19,4 @@ RUN dotnet publish "./CoffeeNChillGatewayAPI.csproj" -c $BUILD_CONFIGURATION -o 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-
-ENV ASPNETCORE_HTTP_PORTS=8080
-ENV ASPNETCORE_ENVIRONMENT=Production
-
 ENTRYPOINT ["dotnet", "CoffeeNChillGatewayAPI.dll"]

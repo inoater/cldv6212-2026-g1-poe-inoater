@@ -18,10 +18,5 @@ namespace CoffeeNChillGatewayAPI.Models
         public string FullName { get; set; } = string.Empty;
 
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
-
-        public override string ToString()
-        {
-            return $"[{PartitionKey} | {RowKey}] : {FullName}";
-        }
     }
 }

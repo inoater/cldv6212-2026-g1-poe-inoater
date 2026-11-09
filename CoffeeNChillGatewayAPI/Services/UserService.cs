@@ -23,10 +23,8 @@ namespace CoffeeNChillGatewayAPI.Services
 
         public async Task<UserEntity?> GetUserByEmailAsync(string email)
         {
-            string normalisedEmail = email.Trim().ToLowerInvariant();
-
             await foreach (UserEntity user in _tableClient.QueryAsync<UserEntity>(
-                u => u.RowKey == normalisedEmail))
+                u => u.RowKey == email))
             {
                 return user;
             }

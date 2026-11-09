@@ -1,32 +1,18 @@
-using Azure;
-using CoffeeNChillGatewayAPI.Exceptions;
+using CoffeeNChillGatewayAPI.DTOs;
 using System.Net;
+using System.Text.Json;
 
 namespace CoffeeNChillGatewayAPI.Middleware
 {
     public class GlobalExceptionMiddleware  // Microsoft, 2026y; Microsoft, 2026z; rudderz243, 2026
     {
-        private static readonly HttpStatusCode[] _forwardedClientErrors =
-        {
-            HttpStatusCode.BadRequest,
-            HttpStatusCode.NotFound,
-            HttpStatusCode.Conflict,
-            HttpStatusCode.UnsupportedMediaType,
-            HttpStatusCode.ServiceUnavailable
-        };
-
         private readonly RequestDelegate _next;
         private readonly ILogger<GlobalExceptionMiddleware> _logger;
-        private readonly IHostEnvironment _environment;
 
-        public GlobalExceptionMiddleware(
-            RequestDelegate next,
-            ILogger<GlobalExceptionMiddleware> logger,
-            IHostEnvironment environment)
+        public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
         {
             _next = next;
             _logger = logger;
-            _environment = environment;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -35,89 +21,45 @@ namespace CoffeeNChillGatewayAPI.Middleware
             {
                 await _next(context);
             }
-            catch (FunctionsApiException e) when (_forwardedClientErrors.Contains(e.StatusCode))
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
-                _logger.LogWarning(
-                    "The Functions app returned {statusCode} for {method} {path}: {message}",
-                    (int)e.StatusCode,
-                    context.Request.Method,
-                    context.Request.Path,
-                    e.Message);
-
-                await ErrorResponseWriter.WriteAsync(context, (int)e.StatusCode, e.Message);
+                await WriteErrorResponse(context, HttpStatusCode.NotFound, "The requested item was not found", ex.Message);
             }
-            catch (FunctionsApiException e)
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
             {
-                _logger.LogError(
-                    e,
-                    "The Functions app failed with {statusCode} for {method} {path}.",
-                    (int)e.StatusCode,
-                    context.Request.Method,
-                    context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    StatusCodes.Status502BadGateway,
-                    "The CoffeeNChill Functions app could not complete the request.",
-                    Detail(e));
+                await WriteErrorResponse(context, HttpStatusCode.Conflict, "The item already exists", ex.Message);
             }
-            catch (BadHttpRequestException e)
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest ||
+                                                  ex.StatusCode == HttpStatusCode.UnsupportedMediaType)
             {
-                _logger.LogWarning(e, "Bad request for {path}.", context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    e.StatusCode,
-                    e.StatusCode == StatusCodes.Status413PayloadTooLarge
-                        ? "The request body is too large."
-                        : "The request could not be read.",
-                    Detail(e));
+                await WriteErrorResponse(context, ex.StatusCode.Value, "The Function rejected the request", ex.Message);
             }
-            catch (HttpRequestException e)
+            catch (HttpRequestException ex)
             {
-                _logger.LogError(e, "Could not reach the Functions app for {path}.", context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    StatusCodes.Status502BadGateway,
-                    "The CoffeeNChill Functions app is unreachable. Please try again shortly.",
-                    Detail(e));
+                _logger.LogError(ex, "Failed to communicate with the Functions app");
+                await WriteErrorResponse(context, HttpStatusCode.BadGateway, "Can't connect to Function", ex.Message);
             }
-            catch (TaskCanceledException e) when (!context.RequestAborted.IsCancellationRequested)
+            catch (Exception ex)
             {
-                _logger.LogError(e, "The Functions app timed out for {path}.", context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    StatusCodes.Status504GatewayTimeout,
-                    "The CoffeeNChill Functions app took too long to respond.",
-                    Detail(e));
-            }
-            catch (RequestFailedException e)
-            {
-                _logger.LogError(e, "Azure Storage request failed for {path}.", context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    StatusCodes.Status503ServiceUnavailable,
-                    "Storage is currently unavailable. Please try again shortly.",
-                    Detail(e));
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Unhandled exception for {method} {path}.", context.Request.Method, context.Request.Path);
-
-                await ErrorResponseWriter.WriteAsync(
-                    context,
-                    StatusCodes.Status500InternalServerError,
-                    "An unexpected error occurred.",
-                    Detail(e));     // W3Schools, 2026d
-            }
+                _logger.LogError(ex, "General unhandled exception occurred");
+                await WriteErrorResponse(context, HttpStatusCode.InternalServerError, "General error occurred", ex.Message);
+            }   // W3Schools, 2026d
         }
 
-        private string? Detail(Exception e)
+        private static async Task WriteErrorResponse(HttpContext context, HttpStatusCode code, string message, string details)
         {
-            return _environment.IsDevelopment() ? e.Message : null;     // OWASP Foundation, 2026b
+            context.Response.ContentType = "application/json";
+            context.Response.StatusCode = (int)code;
+
+            var error = new ErrorResponseDto
+            {
+                StatusCode = (int)code,
+                Message = message,
+                Detailed = details
+            };
+
+            var json = JsonSerializer.Serialize(error);
+            await context.Response.WriteAsync(json);
         }
     }
 }
