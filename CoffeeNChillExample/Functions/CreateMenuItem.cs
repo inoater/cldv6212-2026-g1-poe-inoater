@@ -69,6 +69,17 @@ namespace CoffeeNChill.Functions
 
                 return response;
             }
+            catch (Azure.RequestFailedException e) when (e.Status == (int)HttpStatusCode.Conflict)
+            {
+                _logger.LogWarning(e, "A menu item with that category and ID already exists.");
+
+                var response = req.CreateResponse(HttpStatusCode.Conflict);
+
+                await response.WriteStringAsync(
+                    "A menu item with that category and ID already exists.");
+
+                return response;    // Microsoft, 2026g
+            }
             catch (Exception e)
             {
                 _logger.LogError(e, "Error creating menu item.");

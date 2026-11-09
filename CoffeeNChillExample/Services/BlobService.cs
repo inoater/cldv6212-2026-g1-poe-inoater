@@ -73,5 +73,15 @@ namespace CoffeeNChill.Services
 
             return (download.Content, download.Details.ContentType);
         }
+
+        public async Task<bool> DeleteFileAsync(string fileName)
+        {
+            BlobClient blobClient = _blobContainerClient.GetBlobClient(fileName);
+
+            Azure.Response<bool> deleted = await blobClient.DeleteIfExistsAsync(   // Microsoft, 2026ak
+                DeleteSnapshotsOption.IncludeSnapshots);
+
+            return deleted.Value;
+        }
     }
 }
