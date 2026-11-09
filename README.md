@@ -12,7 +12,7 @@ CoffeeNChill is a campus canteen. Part 1 replaced the paper menus and filing-cab
 - **Deployment to a Linux VPS** with Docker Compose, pulling the images from Docker Hub.
 - A **GitHub Actions pipeline** (bonus) that builds, tests, pushes the images and redeploys the VPS on every push to `main`.
 
-> **Live gateway (VPS):** `http://<VPS-IP>:5000/swagger` — _replace with the VPS address before submitting._
+> **Live gateway:** https://kay-interface-memorabilia-circular.trycloudflare.com/swagger — _public access is closed after the video recording._
 
 ---
 
@@ -77,7 +77,7 @@ CoffeeNChill/
 
 ## API Endpoints (Gateway)
 
-Base URL: `http://localhost:5000/api` (or `http://<VPS-IP>:5000/api`). Swagger is at `/swagger`.
+Base URL: `http://localhost:5000/api` (or `https://kay-interface-memorabilia-circular.trycloudflare.com/api` live). Swagger is at `/swagger`.
 
 | Method | Route | Access |
 |---|---|---|
@@ -173,19 +173,25 @@ docker push liyemamncoraemecpe/coffeenchill-gateway:v3.0
 
 ---
 
-## VPS deployment
+## Live deployment
 
-1. Connect to the Ubuntu VPS over SSH and install Docker Engine with the Compose plugin (Docker Inc., 2026d; DigitalOcean, 2026).
-2. Copy `docker-compose.yml` to `~/coffeenchill` on the VPS.
-3. Pull the images from Docker Hub and start the stack:
+No cloud credits were available, so the stack is hosted on a team member's machine (one of the brief's "Linux box" options) running Docker Linux containers, and made public with a Cloudflare quick tunnel (Docker Inc., 2026d; Cloudflare, 2026).
+
+1. Install Docker Desktop with the Compose plugin.
+2. Pull the images from Docker Hub and start the stack from the repo folder:
 
    ```bash
-   cd ~/coffeenchill
    docker compose pull
    docker compose up -d
    ```
 
-4. Open port `5000` in the VPS firewall and browse to `http://<VPS-IP>:5000/swagger`. Public access can be closed again after the video.
+3. Open the public tunnel to the gateway:
+
+   ```bash
+   cloudflared tunnel --url http://localhost:5000
+   ```
+
+4. Browse to the printed `https://<name>.trycloudflare.com/swagger` URL. The URL changes each time the tunnel starts, and public access is closed again after the video.
 
 ## CI/CD pipeline (bonus)
 
@@ -429,7 +435,7 @@ W3Schools (2026e) _HTTP Status Codes_. Available at: https://www.w3schools.com/t
 
 W3Schools (2026f) _C# Inheritance_. Available at: https://www.w3schools.com/cs/cs_inheritance.php (Accessed: 9 November 2026).
 
-Docker Inc. (2026d) _Install Docker Engine on Ubuntu_. Available at: https://docs.docker.com/engine/install/ubuntu/ (Accessed: 9 November 2026).
+Docker Inc. (2026d) _Install Docker Desktop on Windows_. Available at: https://docs.docker.com/desktop/setup/install/windows-install/ (Accessed: 9 November 2026).
 
 GitHub (2026a) _Workflow syntax for GitHub Actions_. Available at: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax (Accessed: 9 November 2026).
 
@@ -439,4 +445,4 @@ GitHub (2026c) _Store information in variables_. Available at: https://docs.gith
 
 Postman Inc. (2026b) _Authorization types supported by Postman_. Available at: https://learning.postman.com/docs/sending-requests/authorization/authorization-types/ (Accessed: 9 November 2026).
 
-DigitalOcean (2026) _How to Install Docker on Ubuntu – Step-by-Step Guide_. Available at: https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04 (Accessed: 9 November 2026).
+Cloudflare (2026) _Quick Tunnels_. Available at: https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/ (Accessed: 9 November 2026).
