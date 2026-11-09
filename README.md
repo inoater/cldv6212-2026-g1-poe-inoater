@@ -306,8 +306,8 @@ Protected requests send `Bearer {{token}}` (Postman Inc., 2026b). `docs/CoffeeNC
 
 | Member | Student Number | Contribution |
 |---|---|---|
-| Jake Jacobs | st10477406 | _To be completed._ |
-| Liyema Mncora | st10397155 | Built the gateway API: the controllers, DTOs and typed HttpClients that call the Functions app, register and login against the Users table with BCrypt and JWT, the role-based access on each route, the global exception middleware and Swagger. Added the DeleteStaffDocument and UpdateOrderStatus functions, the unit tests, the gateway Dockerfile, the gateway service in docker-compose.yml, the GitHub Actions pipeline, the Part 3 Postman collection and the README. |
+| Jake Jacobs | st10477406 | Set up the gateway project and built the login side of it: the Users table entity and the service that connects to it, the register and login endpoints with their DTOs, hashing passwords with BCrypt before they are saved, and creating the JWT with the user's name, email and role. Set up JWT bearer authentication and Swagger in Program.cs, with XML comments and the Authorize button so a token can be tested straight from Swagger, wrote the unit tests for the tokens and password hashing, and made the multi-stage Dockerfile for the gateway. |
+| Liyema Mncora | st10397155 | Built the rest of the gateway on top of the login: the menu, document and order controllers and DTOs, the typed HttpClients that call the Functions app, the Admin/Staff roles on each protected route and the global exception middleware that returns the same error format every time. Added the DeleteStaffDocument and UpdateOrderStatus functions and stopped duplicate document uploads overwriting files. Added the gateway to docker-compose.yml, pushed the v3.0 images to Docker Hub, wrote the GitHub Actions pipeline, made the Part 3 Postman collection with the Bearer token flows, deployed the stack live through a Cloudflare tunnel and updated the README. |
 
 ## Video Demonstration
 
