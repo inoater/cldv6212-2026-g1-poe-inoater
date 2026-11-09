@@ -2,7 +2,7 @@
 
 **Part 3 (POE) — Web API Gateway, JWT Authentication & VPS Deployment**
 
-CoffeeNChill is a campus canteen. Part 1 replaced the paper menus and filing-cabinet documents with Azure Table Storage, Azure Blob Storage and HTTP-triggered Azure Functions. Part 2 added the order queue, queue-triggered processing and Docker Compose. Part 3 adds:
+CoffeeNChill is a campus canteen. Part 1 replaced the paper menus and filing-cabinet documents with Azure Table Storage, Azure Blob Storage and HTTP-triggered Azure Functions (Mrzyglod, 2022; Huawei, 2022). Part 2 added the order queue, queue-triggered processing and Docker Compose. Part 3 adds:
 
 - An **ASP.NET Core Web API gateway** (`CoffeeNChillGatewayAPI`) that routes client requests to the Azure Functions using DTOs.
 - **JWT authentication** with user profiles stored in a **Users** Azure Table and passwords hashed with **BCrypt**.
@@ -151,6 +151,7 @@ docker compose down
 1. Start Azurite: `docker run -d --name azurite -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite`
 2. Open `CoffeeNChill.slnx`, right-click the solution → **Configure Startup Projects** → **Multiple startup projects**, and start both `CoffeeNChill` and `CoffeeNChillGatewayAPI`.
 3. Press `F5`. Swagger opens on `http://localhost:5000/swagger`.
+4. Azure Storage Explorer can be used to look inside the Users, MenuItems and Orders tables (Microsoft, 2026t).
 
 ### Using Swagger with a token
 
@@ -217,7 +218,7 @@ The docker and deploy jobs are skipped until `DOCKERHUB_USERNAME` and `VPS_HOST`
 
 ## Testing with Postman
 
-1. Import `docs/CoffeeNChill.postman_collection.json`.
+1. Import `docs/CoffeeNChill.postman_collection.json` into Postman (Postman Inc., 2026a).
 2. Set `baseUrl` to `http://localhost:5000/api` (or the VPS address).
 3. Set the Postman working directory to the `docs` folder so the upload finds `sample-recipe.pdf`.
 4. Run the folders in order.

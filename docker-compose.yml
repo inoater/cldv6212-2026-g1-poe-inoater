@@ -1,5 +1,5 @@
 services: # Docker Inc., 2026b; IIE, 2026g
-  azurite:
+  azurite:  # Microsoft, 2026f
     image: liyemamncoraemecpe/coffeenchill-azurite:v1.0
     command: ["azurite", "-l", "/data", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck"]
     container_name: coffeenchill-azurite

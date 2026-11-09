@@ -16,7 +16,7 @@
 		<PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" Version="5.5.4" />	<!-- Microsoft, 2026q -->
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Timer" Version="4.3.1" />	<!-- Microsoft, 2026r -->
-		<PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
+		<PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />	<!-- Microsoft, 2026m -->
 		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
 		<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.7.0" />
 		<PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.1.0" />
